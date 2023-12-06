@@ -1,3 +1,4 @@
+import timm
 import os
 import torch
 from PIL import Image
@@ -8,15 +9,41 @@ from translate import Translator
 import json
 import urllib.request
 
-# 使用新的weights参数加载预训练的 ResNet50 模型
-weights = ResNet50_Weights.DEFAULT
-model = resnet50(weights=weights)
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    print("Running on the GPU")
+else:
+    device = torch.device("cpu")
+    print("Running on the CPU")
+
+# 使用 EfficientNet
+model_name = 'efficientnet_b5'  # 您可以选择不同的版本，例如 'efficientnet_b0' 到 'efficientnet_b7'
+model = timm.create_model(model_name, pretrained=True)
+model.to(device)  # 确保模型也在 GPU 上
 model.eval()
 
+# 其余的函数（process_image, translate_text_with_translate_lib 等）保持不变
+
+def recognize_image(image_path):
+    img_tensor = process_image(image_path)
+    with torch.no_grad():
+        outputs = model(img_tensor)  # 输入数据现在在 GPU 上
+        print(outputs)
+    # 获取 top-5 类别
+    probabilities = torch.nn.functional.softmax(outputs, dim=1)
+    top5_prob, top5_catid = torch.topk(probabilities, 5)
+    print(top5_prob, top5_catid)
+    # 将类别 ID 转换为自然语言标签
+    top5_labels = [imagenet_labels[catid.item()] for catid in top5_catid[0]]
+    print(top5_labels)
+    # 翻译标签
+    translated_labels = [translate_text_with_translate_lib(label) for label in top5_labels]
+    return translated_labels
+
+# 其余的代码（add_tags_to_filename, rename_files_in_folder, main）保持不变
 def process_image(image_path):
     pil_image = Image.open(image_path)
     image_array = np.array(pil_image)
-    image_array = image_array[:, :, ::-1].copy()
 
     transform = transforms.Compose([
         transforms.ToPILImage(),
@@ -24,7 +51,8 @@ def process_image(image_path):
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    return transform(image_array).unsqueeze(0)
+    img_tensor = transform(image_array).unsqueeze(0)
+    return img_tensor.to(device)  # 将图像数据转移到 GPU
 
 def translate_text_with_translate_lib(text, target_language='zh-TW'):
     translator = Translator(to_lang=target_language)
@@ -37,18 +65,6 @@ def download_imagenet_labels():
     response = urllib.request.urlopen(url)
     labels = json.loads(response.read())
     return labels
-
-def recognize_image(image_path):
-    img_tensor = process_image(image_path)
-    with torch.no_grad():
-        outputs = model(img_tensor)
-    probabilities = torch.nn.functional.softmax(outputs[0], dim=0)
-    top5_prob, top5_catid = torch.topk(probabilities, 5)
-    top5_labels = [imagenet_labels[catid.item()] for catid in top5_catid]
-    # 翻译标签
-    translated_labels = [translate_text_with_translate_lib(label) for label in top5_labels]
-    return translated_labels
-
 # 将标签添加到文件名
 def add_tags_to_filename(file_path, tags):
     if not tags:
