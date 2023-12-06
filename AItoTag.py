@@ -81,10 +81,11 @@ def main(root_folder_path):
     elif f == "1":
         for folder_path, _, filenames in os.walk(root_folder_path):
             for filename in filenames:
-                if filename.lower().endswith((".png", ".jpg", ".jpeg")):
-                    image_path = os.path.join(folder_path, filename)
-                    tags = recognize_image(image_path)
-                    add_tags_to_filename(image_path, tags)
+                if "_ait_o" in filename:
+                    if filename.lower().endswith((".png", ".jpg", ".jpeg")):
+                        image_path = os.path.join(folder_path, filename)
+                        tags = recognize_image(image_path)
+                        add_tags_to_filename(image_path, tags)
 
 # 指定根目录路径
 root_folder_path = input("照片資料夾路徑：")
