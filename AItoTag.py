@@ -4,7 +4,6 @@ import torch
 from PIL import Image
 import numpy as np
 import torchvision.transforms as transforms
-from torchvision.models import resnet50, ResNet50_Weights
 from translate import Translator
 import json
 import urllib.request
@@ -16,24 +15,26 @@ else:
     device = torch.device("cpu")
     print("Running on the CPU")
 
-# 使用 EfficientNet
-model_name = 'efficientnet_b5'  # 您可以选择不同的版本，例如 'efficientnet_b0' 到 'efficientnet_b7'
+# 使用 Vision Transformer
+model_name = 'vit_large_patch16_224'  # 例如 'vit_base_patch16_224', 'vit_large_patch16_224' 等
 model = timm.create_model(model_name, pretrained=True)
 model.to(device)  # 确保模型也在 GPU 上
 model.eval()
 
-# 其余的函数（process_image, translate_text_with_translate_lib 等）保持不变
+def download_imagenet_labels():
+    url = "https://raw.githubusercontent.com/anishathalye/imagenet-simple-labels/master/imagenet-simple-labels.json"
+    response = urllib.request.urlopen(url)
+    labels = json.loads(response.read())
+    return labels
 
 def recognize_image(image_path):
     img_tensor = process_image(image_path)
     with torch.no_grad():
-        outputs = model(img_tensor)  # 输入数据现在在 GPU 上
-        print(outputs)
-    # 获取 top-5 类别
+        outputs = model(img_tensor)
     probabilities = torch.nn.functional.softmax(outputs, dim=1)
     top5_prob, top5_catid = torch.topk(probabilities, 5)
-    print(top5_prob, top5_catid)
-    # 将类别 ID 转换为自然语言标签
+
+    # 检查模型输出的类别 ID，并转换为字符串
     top5_labels = [imagenet_labels[catid.item()] for catid in top5_catid[0]]
     print(top5_labels)
     # 翻译标签
@@ -59,19 +60,23 @@ def translate_text_with_translate_lib(text, target_language='zh-TW'):
     translation = translator.translate(text)
     return translation
 
-# 从网络上下载 ImageNet 类别标签
-def download_imagenet_labels():
-    url = "https://raw.githubusercontent.com/anishathalye/imagenet-simple-labels/master/imagenet-simple-labels.json"
-    response = urllib.request.urlopen(url)
-    labels = json.loads(response.read())
-    return labels
 # 将标签添加到文件名
+def is_valid_tag(tag):
+    invalid_chars = set('<>:"/\\|?*\t')
+    return not any((c in invalid_chars) for c in tag)
+
 def add_tags_to_filename(file_path, tags):
-    if not tags:
-        return  # 如果没有标签，则不进行操作
+    # 过滤掉包含不合法字符的标签
+    valid_tags = [tag for tag in tags if is_valid_tag(tag)]
+
+    if not valid_tags:
+        print(f"所有标签不合法，跳过文件：{file_path}")
+        return  # 如果没有合法的标签，则跳过该文件
+
     name, ext = os.path.splitext(file_path)
-    new_name = f"{name}_ait_o{'_'.join(tags)}{ext}"
-    os.rename(file_path, new_name)
+    new_name = f"{name}_ait_o{'_'.join(valid_tags)}{ext}"
+    new_file_path = os.path.join(os.path.dirname(file_path), new_name)
+    os.rename(file_path, new_file_path)
 
 def rename_files_in_folder(folder_path):
     for folder_path, _, filenames in os.walk(root_folder_path):
