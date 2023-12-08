@@ -4,15 +4,13 @@ import torch
 from PIL import Image
 import numpy as np
 import torchvision.transforms as transforms
-from translate import Translator
 import json
 import urllib.request
 from easynmt import EasyNMT
-from easynmt import EasyNMT
 import zhconv
 
-def translate_text_with_easynmt(text, target_language='zh'):
-    return zhconv.convert(translate_model.translate(text, target_lang=target_language), 'zh-tw')
+def translate_text_with_easynmt(text, source_language='en', target_language='zh'):
+    return zhconv.convert(translate_model.translate(text,source_lang=source_language, target_lang=target_language), 'zh-tw')
 
 if torch.cuda.is_available():
     device = torch.device("cuda")
@@ -39,11 +37,14 @@ def recognize_image(image_path):
     with torch.no_grad():
         outputs = model(img_tensor)
     probabilities = torch.nn.functional.softmax(outputs, dim=1)
-    top5_prob, top5_catid = torch.topk(probabilities, 5)
+    top7_prob, top7_catid = torch.topk(probabilities, 7)
 
-    top5_labels = [imagenet_labels[catid.item()] for catid in top5_catid[0]]
+    top7_labels = [imagenet_labels[catid.item()] for catid in top7_catid[0]]
     # 使用 EasyNMT 进行翻译
-    translated_labels = [translate_text_with_easynmt(label) for label in top5_labels]
+    translated_labels = []
+    for label in top7_labels:
+        t = translate_text_with_easynmt(label)
+        translated_labels.append(t)
     return translated_labels
 
 # 其余的代码（add_tags_to_filename, rename_files_in_folder, main）保持不变
@@ -106,6 +107,7 @@ def main(root_folder_path):
                     if filename.lower().endswith((".png", ".jpg", ".jpeg")):
                         image_path = os.path.join(folder_path, filename)
                         tags = recognize_image(image_path)
+                        print(tags)
                         add_tags_to_filename(image_path, tags)
 
 # 指定根目录路径
