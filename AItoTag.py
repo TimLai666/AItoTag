@@ -41,11 +41,16 @@ def recognize_image(image_path):
     top7_prob, top7_catid = torch.topk(probabilities, 7)
 
     top7_labels = [imagenet_labels[catid.item()] for catid in top7_catid[0]]
-    # 使用 EasyNMT 进行翻译
-    translated_labels = []
-    for label in top7_labels:
-        t = translate_text(label)
-        translated_labels.append(t)
+    # 进行翻译
+    while True:
+        try:
+            translated_labels = []
+            for label in top7_labels:
+                t = translate_text(label)
+                translated_labels.append(t)
+            break
+        except:
+            continue
     return translated_labels
 
 # 其余的代码（add_tags_to_filename, rename_files_in_folder, main）保持不变
