@@ -7,6 +7,12 @@ import torchvision.transforms as transforms
 from translate import Translator
 import json
 import urllib.request
+from easynmt import EasyNMT
+from easynmt import EasyNMT
+import zhconv
+
+def translate_text_with_easynmt(text, target_language='zh'):
+    return zhconv.convert(translate_model.translate(text, target_lang=target_language), 'zh-tw')
 
 if torch.cuda.is_available():
     device = torch.device("cuda")
@@ -15,6 +21,7 @@ else:
     device = torch.device("cpu")
     print("Running on the CPU")
 
+translate_model = EasyNMT('m2m_100_1.2b')
 # 使用 Vision Transformer
 model_name = 'vit_large_patch16_224'  # 例如 'vit_base_patch16_224', 'vit_large_patch16_224' 等
 model = timm.create_model(model_name, pretrained=True)
@@ -34,11 +41,9 @@ def recognize_image(image_path):
     probabilities = torch.nn.functional.softmax(outputs, dim=1)
     top5_prob, top5_catid = torch.topk(probabilities, 5)
 
-    # 检查模型输出的类别 ID，并转换为字符串
     top5_labels = [imagenet_labels[catid.item()] for catid in top5_catid[0]]
-    print(top5_labels)
-    # 翻译标签
-    translated_labels = [translate_text_with_translate_lib(label) for label in top5_labels]
+    # 使用 EasyNMT 进行翻译
+    translated_labels = [translate_text_with_easynmt(label) for label in top5_labels]
     return translated_labels
 
 # 其余的代码（add_tags_to_filename, rename_files_in_folder, main）保持不变
@@ -54,11 +59,6 @@ def process_image(image_path):
     ])
     img_tensor = transform(image_array).unsqueeze(0)
     return img_tensor.to(device)  # 将图像数据转移到 GPU
-
-def translate_text_with_translate_lib(text, target_language='zh-TW'):
-    translator = Translator(to_lang=target_language)
-    translation = translator.translate(text)
-    return translation
 
 # 将标签添加到文件名
 def is_valid_tag(tag):
