@@ -6,11 +6,12 @@ import numpy as np
 import torchvision.transforms as transforms
 import json
 import urllib.request
-from easynmt import EasyNMT
-import zhconv
+import googletrans
 
-def translate_text_with_easynmt(text, source_language='en', target_language='zh'):
-    return zhconv.convert(translate_model.translate(text,source_lang=source_language, target_lang=target_language), 'zh-tw')
+def translate_text(text, target_language='zh-tw'):
+    translator = googletrans.Translator()
+    t = translator.translate(text, dest=target_language).text
+    return t
 
 if torch.cuda.is_available():
     device = torch.device("cuda")
@@ -19,7 +20,7 @@ else:
     device = torch.device("cpu")
     print("Running on the CPU")
 
-translate_model = EasyNMT('m2m_100_1.2b')
+
 # 使用 Vision Transformer
 model_name = 'vit_large_patch16_224'  # 例如 'vit_base_patch16_224', 'vit_large_patch16_224' 等
 model = timm.create_model(model_name, pretrained=True)
@@ -43,7 +44,7 @@ def recognize_image(image_path):
     # 使用 EasyNMT 进行翻译
     translated_labels = []
     for label in top7_labels:
-        t = translate_text_with_easynmt(label)
+        t = translate_text(label)
         translated_labels.append(t)
     return translated_labels
 
