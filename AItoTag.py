@@ -30,10 +30,14 @@ model.to(device)  # 确保模型也在 GPU 上
 model.eval()
 
 def download_imagenet_labels():
-    url = "https://raw.githubusercontent.com/anishathalye/imagenet-simple-labels/master/imagenet-simple-labels.json"
-    response = urllib.request.urlopen(url)
-    labels = json.loads(response.read())
-    return labels
+    while True:
+        try:
+            url = "https://raw.githubusercontent.com/anishathalye/imagenet-simple-labels/master/imagenet-simple-labels.json"
+            response = urllib.request.urlopen(url)
+            labels = json.loads(response.read())
+            return labels
+        except:
+            continue
 
 def read_image(image_path):
     """
@@ -49,6 +53,23 @@ def read_image(image_path):
         pil_image = Image.open(image_path)
 
     return pil_image
+
+# 其余的代码（add_tags_to_filename, rename_files_in_folder, main）保持不变
+def process_image(image_path):
+    pil_image = read_image(image_path)
+    image_array = np.array(pil_image)
+
+    # 确保图像是三通道的 RGB
+    if image_array.shape[-1] == 4:  # 如果有 4 个通道（RGBA），则转换为 RGB
+        image_array = image_array[:, :, :3]
+
+    transform = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    return transform(image_array).unsqueeze(0).to(device)
 
 def recognize_image(image_path):
     try:
@@ -73,23 +94,6 @@ def recognize_image(image_path):
             continue
     return translated_labels
 
-# 其余的代码（add_tags_to_filename, rename_files_in_folder, main）保持不变
-def process_image(image_path):
-    pil_image = read_image(image_path)
-    image_array = np.array(pil_image)
-
-    # 确保图像是三通道的 RGB
-    if image_array.shape[-1] == 4:  # 如果有 4 个通道（RGBA），则转换为 RGB
-        image_array = image_array[:, :, :3]
-
-    transform = transforms.Compose([
-        transforms.ToPILImage(),
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
-    return transform(image_array).unsqueeze(0).to(device)
-
 # 将标签添加到文件名
 def is_valid_tag(tag):
     invalid_chars = set('<>:"/\\|?*\t')
@@ -100,7 +104,7 @@ def add_tags_to_filename(file_path, tags):
     valid_tags = [tag for tag in tags if is_valid_tag(tag)]
 
     if not valid_tags:
-        print(f"所有标签不合法，跳过文件：{file_path}")
+        print(f"所有標籤不合法，跳過{file_path}")
         return  # 如果没有合法的标签，则跳过该文件
 
     name, ext = os.path.splitext(file_path)
@@ -137,6 +141,7 @@ def main(root_folder_path):
                         image_path = os.path.join(folder_path, filename)
                         tags = recognize_image(image_path)
                         if tags != 0:
+                            print("已處理", image_path)
                             print(tags)
                             add_tags_to_filename(image_path, tags)
                         else:
