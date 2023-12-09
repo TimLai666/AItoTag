@@ -7,6 +7,8 @@ import torchvision.transforms as transforms
 import json
 import urllib.request
 import googletrans
+from wand.image import Image as WandImage
+from io import BytesIO
 
 def translate_text(text, target_language='zh-tw'):
     translator = googletrans.Translator()
@@ -33,6 +35,21 @@ def download_imagenet_labels():
     labels = json.loads(response.read())
     return labels
 
+def read_image(image_path):
+    """
+    读取图像文件，支持常规格式和 HEIC 格式。
+    如果是 HEIC 格式，则在内存中转换为 JPEG。
+    """
+    if image_path.lower().endswith(".heic"):
+        with WandImage(filename=image_path) as img:
+            with img.convert('jpeg') as converted:
+                jpeg_bytes = converted.make_blob('jpeg')
+        pil_image = Image.open(BytesIO(jpeg_bytes))
+    else:
+        pil_image = Image.open(image_path)
+
+    return pil_image
+
 def recognize_image(image_path):
     img_tensor = process_image(image_path)
     with torch.no_grad():
@@ -55,7 +72,7 @@ def recognize_image(image_path):
 
 # 其余的代码（add_tags_to_filename, rename_files_in_folder, main）保持不变
 def process_image(image_path):
-    pil_image = Image.open(image_path)
+    pil_image = read_image(image_path)
     image_array = np.array(pil_image)
 
     # 确保图像是三通道的 RGB
@@ -113,7 +130,7 @@ def main(root_folder_path):
         for folder_path, _, filenames in os.walk(root_folder_path):
             for filename in filenames:
                 if not "_ait_o" in filename:
-                    if filename.lower().endswith((".png", ".jpg", ".jpeg")):
+                    if filename.lower().endswith((".png", ".jpg", ".jpeg", ".heic")):
                         image_path = os.path.join(folder_path, filename)
                         tags = recognize_image(image_path)
                         print(tags)
