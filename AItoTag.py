@@ -23,11 +23,25 @@ else:
     print("Running on the CPU")
 
 
-# 使用 Vision Transformer
-model_name = 'vit_large_patch16_224'  # 例如 'vit_base_patch16_224', 'vit_large_patch16_224' 等
-model = timm.create_model(model_name, pretrained=True)
-model.to(device)  # 确保模型也在 GPU 上
-model.eval()
+# 初始化模型
+models = {
+    'vit': timm.create_model('vit_large_patch16_224', pretrained=True),
+    'swin': timm.create_model('swin_large_patch4_window7_224', pretrained=True),
+    'deit': timm.create_model('deit_base_patch16_224', pretrained=True),
+    'convnext': timm.create_model('convnext_large', pretrained=True),
+    'efficientnetv2': timm.create_model('tf_efficientnetv2_l', pretrained=True),
+    'bit': timm.create_model('resnetv2_152x2_bit.goog_in21k_ft_in1k', pretrained=True),
+    'mobilenetv3': timm.create_model('mobilenetv3_large_100_miil', pretrained=True),
+    'densenet': timm.create_model('densenet121', pretrained=True),
+    'regnet': timm.create_model('regnetx_032', pretrained=True),
+    'resnext': timm.create_model('resnext50_32x4d', pretrained=True),
+    'inceptionv3': timm.create_model('tf_inception_v3', pretrained=True)
+}
+
+# 将所有模型移动到相同的设备
+for model in models.values():
+    model.to(device)
+    model.eval()
 
 def download_imagenet_labels():
     while True:
@@ -76,22 +90,36 @@ def recognize_image(image_path):
         img_tensor = process_image(image_path)
     except:
         return 0
-    with torch.no_grad():
-        outputs = model(img_tensor)
-    probabilities = torch.nn.functional.softmax(outputs, dim=1)
-    top7_prob, top7_catid = torch.topk(probabilities, 7)
 
-    top7_labels = [imagenet_labels[catid.item()] for catid in top7_catid[0]]
-    # 进行翻译
-    while True:
+    label_counts = {}
+
+    # 对每个模型进行预测并存储结果
+    for name, model in models.items():
+        with torch.no_grad():
+            outputs = model(img_tensor)
+        probabilities = torch.nn.functional.softmax(outputs, dim=1)
+        top7_prob, top7_catid = torch.topk(probabilities, 7)
+        for catid in top7_catid[0]:
+            label = imagenet_labels[catid.item()]
+            if label not in label_counts:
+                label_counts[label] = 0
+            label_counts[label] += 1
+
+    # 按重复次数对标签排序
+    sorted_labels = sorted(label_counts, key=label_counts.get, reverse=True)
+
+    # 选择前 7 个最常出现的标签
+    final_labels = sorted_labels[:7]
+
+    # 翻译标签
+    translated_labels = []
+    for label in final_labels:
         try:
-            translated_labels = []
-            for label in top7_labels:
-                t = translate_text(label)
-                translated_labels.append(t)
-            break
+            t = translate_text(label)
+            translated_labels.append(t)
         except:
             continue
+
     return translated_labels
 
 # 将标签添加到文件名
