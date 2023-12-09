@@ -51,7 +51,10 @@ def read_image(image_path):
     return pil_image
 
 def recognize_image(image_path):
-    img_tensor = process_image(image_path)
+    try:
+        img_tensor = process_image(image_path)
+    except:
+        return 0
     with torch.no_grad():
         outputs = model(img_tensor)
     probabilities = torch.nn.functional.softmax(outputs, dim=1)
@@ -133,8 +136,12 @@ def main(root_folder_path):
                     if filename.lower().endswith((".png", ".jpg", ".jpeg", ".heic")):
                         image_path = os.path.join(folder_path, filename)
                         tags = recognize_image(image_path)
-                        print(tags)
-                        add_tags_to_filename(image_path, tags)
+                        if tags != 0:
+                            print(tags)
+                            add_tags_to_filename(image_path, tags)
+                        else:
+                            print("讀取失敗，跳過", image_path)
+                            continue
 
 # 指定根目录路径
 root_folder_path = input("照片資料夾路徑：")
