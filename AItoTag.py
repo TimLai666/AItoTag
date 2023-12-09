@@ -58,14 +58,17 @@ def process_image(image_path):
     pil_image = Image.open(image_path)
     image_array = np.array(pil_image)
 
+    # 确保图像是三通道的 RGB
+    if image_array.shape[-1] == 4:  # 如果有 4 个通道（RGBA），则转换为 RGB
+        image_array = image_array[:, :, :3]
+
     transform = transforms.Compose([
         transforms.ToPILImage(),
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    img_tensor = transform(image_array).unsqueeze(0)
-    return img_tensor.to(device)  # 将图像数据转移到 GPU
+    return transform(image_array).unsqueeze(0).to(device)
 
 # 将标签添加到文件名
 def is_valid_tag(tag):
